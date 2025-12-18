@@ -1,41 +1,38 @@
 local M = {}
 
---- Create the scratch buffer. Can be from an original buffer (handle).
----@param origin_bufnr? integer
----@return integer scratch_bufnr buffer handle for scratch_bufnr
-function M.create(origin_bufnr)
-    local scratch_bufnr = vim.api.nvim_create_buf(false, true)
+--- Creates a new scratch buffer. Can be a new buffer or "forked" from a
+--- given buffer.
+---@param origin_buf? integer Buffer to fork from
+---@return integer scratch_buf Buffer id for scratch_buf, or 0 on error
+function M.create_scratch_buf(origin_buf)
+    local scratch_buf = vim.api.nvim_create_buf(false, true)
+    if scratch_buf == 0 then
+        return 0
+    end
 
-    vim.bo[scratch_bufnr].bufhidden = "wipe"
-    vim.bo[scratch_bufnr].buftype = "nofile"
+    vim.bo[scratch_buf].bufhidden = "wipe"
+    vim.bo[scratch_buf].buftype = "nofile"
 
-    if origin_bufnr and vim.api.nvim_buf_is_valid(origin_bufnr) then
-        vim.api.nvim_buf_set_lines(scratch_bufnr, 0, -1, false, vim.api.nvim_buf_get_lines(origin_bufnr, 0, -1, false))
-        local ft = vim.api.nvim_get_option_value("filetype", { buf = origin_bufnr })
+    if origin_buf and vim.api.nvim_buf_is_valid(origin_buf) then
+        vim.api.nvim_buf_set_lines(scratch_buf, 0, -1, false, vim.api.nvim_buf_get_lines(origin_buf, 0, -1, false))
+        local ft = vim.api.nvim_get_option_value("filetype", { buf = origin_buf })
         if ft then
             local lang = vim.treesitter.language.get_lang(ft)
-            if not pcall(vim.treesitter.start, scratch_bufnr, lang) then
-                vim.bo[scratch_bufnr].syntax = ft
+            if not pcall(vim.treesitter.start, scratch_buf, lang) then
+                vim.bo[scratch_buf].syntax = ft
             end
         end
     end
 
-    return scratch_bufnr
+    return scratch_buf
 end
 
---- Open the scratch buffer. Can be from an original buffer (handle).
----@param origin_bufnr? integer
----@return integer scratch_bufnr buffer handle for scratch_bufnr
-function M.open(origin_bufnr)
-    local scratch_bufnr = M.create(origin_bufnr)
-
-    vim.api.nvim_set_current_buf(scratch_bufnr)
-
-    return scratch_bufnr
-end
-
-vim.api.nvim_create_user_command("Scratch", function() M.open() end, {})
-vim.api.nvim_create_user_command("ScratchFork", function() M.open(vim.api.nvim_get_current_buf()) end, {})
+vim.api.nvim_create_user_command("Scratch", function() vim.api.nvim_set_current_buf(M.create_scratch_buf()) end, {})
+vim.api.nvim_create_user_command("ScratchFork", function()
+    local origin = { view = vim.fn.winsaveview() }
+    vim.api.nvim_set_current_buf(M.create_scratch_buf(vim.api.nvim_get_current_buf()))
+    vim.fn.winrestview(origin.view)
+end, {})
 
 function M.setup(opts) end
 
