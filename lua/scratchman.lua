@@ -1,3 +1,5 @@
+local group = vim.api.nvim_create_augroup("skeletony007.group", {})
+
 local M = {}
 
 --- Creates a new scratch buffer. Can be a new buffer or "forked" from a
@@ -29,9 +31,24 @@ end
 
 vim.api.nvim_create_user_command("Scratch", function() vim.api.nvim_set_current_buf(M.create_scratch_buf()) end, {})
 vim.api.nvim_create_user_command("ScratchFork", function()
-    local origin = { view = vim.fn.winsaveview() }
-    vim.api.nvim_set_current_buf(M.create_scratch_buf(vim.api.nvim_get_current_buf()))
-    vim.fn.winrestview(origin.view)
+    local origin = {
+        buf = vim.api.nvim_get_current_buf(),
+        view = vim.fn.winsaveview(),
+    }
+    local scratch = { buf = M.create_scratch_buf(origin.buf) }
+    if scratch.buf == 0 then
+        error("Failed to create scrach buffer.")
+    end
+
+    vim.tbl_extend("force", origin, scratch)
+
+    vim.api.nvim_create_autocmd("BufWinEnter", {
+        group = group,
+        buffer = scratch.buf,
+        once = true,
+        callback = function() vim.fn.winrestview(origin.view) end,
+    })
+    vim.api.nvim_set_current_buf(scratch.buf)
 end, {})
 
 function M.setup(opts) end
